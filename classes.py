@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import PySimpleGUI as sg
 import pdfquery
@@ -10,12 +9,12 @@ import shutil
 import time
 from multiprocessing import Pool
 
+# import main
 
 current_path = os.getcwd()
 temp = os.path.join(current_path, "temp")
 poppler_path = os.path.join(current_path, r"poppler-22.04.0\Library\bin")
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-
 
 
 def notImplemented():
@@ -49,43 +48,64 @@ def list_PDF_files(art=None):
 
 
 def ocrPDF(file_list=None):
-    """
-    if file_list is None:
-        file_list = list_PDF_files()
-    elif file_list == "temp":
-        file_list = list_PDF_files(art="temp")
-    """
+    # convert pdf into images
+    images = convert_from_path(os.path.join(current_path, file_list), poppler_path=poppler_path)
+    pdf_writer = PyPDF2.PdfFileWriter()
 
-    for i in file_list:
-        start = time.time()
-        # convert pdf into images
-        images = convert_from_path(os.path.join(current_path, i), poppler_path=poppler_path)
-        pdf_writer = PyPDF2.PdfFileWriter()
-        #ocr on pages
-        for image in images:
-            print(f"processing file: {i}")
-            page = pytesseract.image_to_pdf_or_hocr(image, lang='eng+deu', extension='pdf')
-            pdf = PyPDF2.PdfFileReader(io.BytesIO(page))
-            pdf_writer.addPage(pdf.getPage(0))
-        # copy ocr files to temp location
-        with open(os.path.join(temp, "temp_"+ i), "wb") as f:
-            pdf_writer.write(f)
-        end = time.time()
-        print(f"elapsed time:{end - start}")
+    # perform ocr on pages
+    for image in images:
+        page = pytesseract.image_to_pdf_or_hocr(image, lang='eng+deu', extension='pdf')
+        pdf = PyPDF2.PdfFileReader(io.BytesIO(page))
+        pdf_writer.addPage(pdf.getPage(0))
+    # copy ocr files to temp location
+    with open(os.path.join(temp, "temp_" + file_list), "wb") as f:
+        pdf_writer.write(f)
+
+
+def ocrPooled(files_list):
+    with Pool() as pool:
+        pool.map(ocrPDF, files_list)
+        # list(pool.imap_unordered(ocrPDF, files_list))
+
+
+def renameFiles(files):
+    new_path = os.path.join(temp, files)
+    pdf = pdfquery.PDFQuery(new_path)
+    pdf.load()
+    name = pdf.pq('LTTextLineHorizontal:overlaps_bbox("138, 1800, 420, 1940")').text()
+    name = str(name.split()[0] + ".pdf")
+    pdf.file.close()
+    try:
+        shutil.copyfile(new_path, current_path + '\\renamed\\' + name)
+    except FileNotFoundError:
+        os.mkdir(current_path + "\\renamed\\")
+        shutil.copyfile(new_path, current_path + '\\renamed\\' + name)
+
 
 def printPaths():
     print(f"current path: {current_path}")
     print(f"Temp Path: {temp}")
 
 
-if __name__ == '__main__':
-    multiprocessing.freeze_support()
-    files_list = ['CCF_000995.pdf', 'CCF_000996.pdf', 'CCF_000997.pdf', 'CCF_000998.pdf']
+def rmfiles():
+    for file in os.listdir(temp):
+        file_path = os.path.join(temp, file)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+        except Exception as e:
+            print(e)
 
-    total_start = time.time()
+
+def renamePooled(file_list):
     with Pool() as pool:
-        pool.imap_unordered(ocrPDF, files_list)
-    total_end = time.time()
+        list(pool.imap_unordered(renameFiles, file_list))
 
-    print(f"finished after {total_end - total_start}")
 
+"""
+if __name__ == '__main__':
+
+    
+
+    
+"""

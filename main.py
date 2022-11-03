@@ -12,8 +12,8 @@ Improvements:
     - GUI
     - Folder Settings
 """
-
-
+import os
+from multiprocessing import freeze_support
 # from classes import *
 import classes as cl
 import PySimpleGUI as sg
@@ -54,14 +54,28 @@ def main():
         print(event, values)
         if event == sg.WINDOW_CLOSED or event == 'CLOSE':
             break
-        if event == 'CONVERT':
-            cl.convertPDF()
         if event == 'SETTINGS':
             cl.notImplemented()
+        if event == '-SOURCE-':
+            files_list = os.listdir(values['-SOURCE-'])
+            fnames = [f for f in files_list if f.lower().endswith('.pdf')]
+            window['-LIST-'].update(fnames)
+            sg.cprint(fnames)
+        try:
+            if event == 'CONVERT' and bool(fnames):
+                cl.ocrPooled(fnames)
+                templist = os.listdir(cl.temp)
+                tempfiles = [t for t in templist if t.lower().endswith('.pdf')]
+                cl.renamePooled(tempfiles)
+                cl.rmfiles()
+        except UnboundLocalError:
+            sg.cprint('PLEASE SELECT A SOURCE FOLDER FIRST')
+
     # step 5: close window
     window.close()
     exit()
 
 
 if __name__ == '__main__':
+    freeze_support()
     main()
